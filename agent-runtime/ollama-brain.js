@@ -56,7 +56,7 @@ async function askForDecision(profile, memory, observation) {
     }),
     'Наблюдение в игре: ' + JSON.stringify(observation),
     'Выбери одно наиболее разумное действие прямо сейчас.'
-  ].join('\\n')
+  ].join(String.fromCharCode(10))
 
   const response = await fetch(OLLAMA_URL + '/api/chat', {
     method: 'POST',
