@@ -6,7 +6,7 @@ This process connects 19 separate player clients to your own private Paper 26.2 
 - Node.js 22+
 - Paper 26.2
 - AISMP plugin installed
-- Optional: Ollama running locally with a small Russian-capable model
+- Ollama running locally with a model that supports Russian and structured JSON output
 
 Keep the server private and whitelist enabled. Offline-mode usernames are not authenticated identities. Do not expose an offline-mode server directly to the public internet.
 
@@ -22,39 +22,31 @@ npm install
 $env:MC_HOST="127.0.0.1"
 $env:MC_PORT="25565"
 $env:MC_VERSION="26.2"
+$env:OLLAMA_MODEL="qwen2.5:3b"
 npm start
 ```
 
-If the server is on another PC, use its private LAN IP for MC_HOST.
-
-## Optional local AI conversations (Ollama)
-The game simulation works without Ollama. Without it, agents use built-in Russian dialogue.
-
-To enable locally generated dialogue, install and run Ollama, then download a small model:
+## Install the local AI
+Install Ollama, start it, then download the default model:
 
 ```powershell
 ollama pull qwen2.5:3b
 ```
 
-Keep Ollama running, then launch the runtime with:
+Ollama must remain running at `http://127.0.0.1:11434`. The model can be changed with `OLLAMA_MODEL`; the URL can be changed with `OLLAMA_URL`. All model requests go to localhost; no OpenAI API key is used.
 
-```powershell
-$env:OLLAMA_URL="http://127.0.0.1:11434"
-$env:OLLAMA_MODEL="qwen2.5:3b"
-npm start
-```
+## How decisions work
+Every agent periodically sends its own profile, memories, relationships, inventory, nearby agents, nearby wood and current position to Ollama. The model returns a structured decision. The runtime validates it against a strict action allowlist, then executes the selected in-game action through Mineflayer.
 
-All model requests go to localhost; no OpenAI API key is used. The runtime queues requests so 19 agents do not send prompts simultaneously. If Ollama is offline, the built-in dialogue is used automatically.
+Available decisions:
+- Explore nearby terrain and record discoveries.
+- Gather wood when resources are useful.
+- Build or improve a starter camp when materials are available.
+- Visit a nearby agent and start a conversation.
+- Choose a home location or return to it.
+- Talk or rest.
 
-## Current simulation
-- 19 unique agent profiles with different roles and personalities.
-- Separate real Minecraft client connections.
-- Circle staging and 60-second countdown, started only after all 19 agents connect.
-- Reconnect attempts if a client drops.
-- Explorer, gatherer and builder routines using Mineflayer pathfinding.
-- Russian chat and basic relationship tracking between agents.
-- Persistent local memories in `memory.json` (created automatically and not committed to Git).
-- Optional Ollama-generated dialogue based on each agent's recent events and relationships.
+The model is not given direct access to arbitrary JavaScript, shell commands or server commands. Its output is treated as untrusted data and only validated actions can run. If Ollama is unavailable or returns invalid data, a clearly logged simple fallback keeps the characters moving.
 
-## Honest limitations
-This is an evolving prototype, not a finished human-level autonomous civilization. Most in-world actions are currently rule-based. Ollama currently improves dialogue/personality, not pathfinding or strategic planning. The current build does not implement combat. Settlement construction, shared faction goals, diplomacy, food/shelter needs, richer memory retrieval and automated world-history reports remain future milestones.
+## Current limits
+This is a genuine LLM-driven decision loop, but it is not yet a human-level civilization simulator. Building is currently a small starter-camp action; agents do not yet have a shared faction economy, sophisticated construction planner, farming/food needs, or long-term multi-agent negotiation. The model decides among supported actions; Mineflayer performs the actual movement and block interactions. Live compatibility and behavior still need testing on your exact Paper 26.2 server.
