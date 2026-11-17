@@ -3,7 +3,7 @@ const { pathfinder, Movements, goals } = require('mineflayer-pathfinder')
 const fs = require('node:fs')
 const path = require('node:path')
 const profiles = require('./bots.json')
-const { generateChat } = require('./ollama-brain')
+const { generateDecision } = require('./ollama-brain')
 
 const HOST = process.env.MC_HOST || '127.0.0.1'
 const PORT = Number(process.env.MC_PORT || 25565)
@@ -245,17 +245,89 @@ async function buildStarterCamp(bot, profile) {
   return false
 }
 
-async function socialMoment(bot, profile, state) {
-  if (Date.now() - state.lastChat < 45000) return
-  state.lastChat = Date.now()
-  const thought = await generateChat(profile, memory[profile.name])
-  const phrases = [
-    'Как у вас дела? Я продолжаю обустраиваться.',
-    'Если найдёте удобное место для поселения, расскажите.',
-    'Давайте обмениваться новостями об исследованных местах.',
-    'Постепенно собираю ресурсы для своего лагеря.'
-  ]
-  say(bot, thought || phrases[rand(0, phrases.length - 1)])
+function observeAgent(bot, profile) {
+  const position = safePosition(bot)
+  const inventory = bot.inventory.items().reduce((items, item) => {
+    const found = items.find(entry => entry.name === item.name)
+    if (found) found.count += item.count
+    else if (items.length < 18) items.push({ name: item.name, count: item.count })
+    return items
+  }, [])
+  const nearbyAgents = []
+  for (const [name, player] of Object.entries(bot.players || {})) {
+    if (name === bot.username || !player.entity || !profiles.some(p => p.name === name)) continue
+    const distance = Math.round(bot.entity.position.distanceTo(player.entity.position))
+    if (distance <= 32) nearbyAgents.push({ name, faction: profiles.find(p => p.name === name)?.faction, distance })
+  }
+  const logNames = ['oak_log','spruce_log','birch_log','jungle_log','acacia_log','dark_oak_log','mangrove_log','cherry_log','pale_oak_log']
+  const logIds = logNames.map(name => bot.registry.blocksByName[name]?.id).filter(id => id !== undefined)
+  let nearbyLogs = 0
+  if (logIds.length) {
+    try { nearbyLogs = bot.findBlocks({ matching: logIds, maxDistance: 20, count: 8 }).length } catch {}
+  }
+  const ground = position ? bot.blockAt(bot.entity.position.offset(0, -1, 0)) : null
+  return {
+    position,
+    health: bot.health,
+    food: bot.food,
+    inventory,
+    nearbyLogs,
+    nearbyAgents: nearbyAgents.slice(0, 6),
+    groundBlock: ground?.name || 'unknown',
+    home: memory[profile.name].home,
+    discoveries: memory[profile.name].discoveries.slice(-8),
+    relationships: Object.entries(memory[profile.name].relationships).slice(0, 8).map(([name, value]) => ({ name, trust: value.trust })),
+    stats: memory[profile.name].stats
+  }
+}
+
+function fallbackDecision(profile, observation) {
+  const logs = observation.inventory.filter(item => item.name.endsWith('_log')).reduce((sum, item) => sum + item.count, 0)
+  if (profile.role === 'builder' && logs >= 2) return { action: 'build_camp', goal: 'обустроить лагерь', reason: 'Есть материалы для строительства', message: '' }
+  if (observation.nearbyLogs > 0 && logs < 8) return { action: 'gather_wood', goal: 'собрать материалы', reason: 'Рядом есть древесина', message: '' }
+  return { action: 'explore', goal: 'изучить окрестности', reason: 'Нужно найти полезное место', message: '' }
+}
+
+async function executeDecision(bot, profile, state, decision, observation) {
+  const action = decision.action
+  memory[profile.name].currentGoal = String(decision.goal || action).slice(0, 120)
+  remember(profile.name, 'Решение ИИ: ' + action + ' — ' + String(decision.reason || '').slice(0, 120))
+  console.log('[THINK] ' + profile.name + ' -> ' + action + ': ' + (decision.reason || decision.goal || ''))
+
+  if (action === 'explore') {
+    await explore(bot, profile)
+  } else if (action === 'gather_wood') {
+    const amount = await gatherWood(bot, profile)
+    if (!amount) await explore(bot, profile)
+  } else if (action === 'build_camp') {
+    const built = await buildStarterCamp(bot, profile)
+    if (!built) {
+      const amount = await gatherWood(bot, profile)
+      if (!amount) await explore(bot, profile)
+    }
+  } else if (action === 'visit_agent') {
+    const target = observation.nearbyAgents.find(agent => agent.name === decision.target)
+      || observation.nearbyAgents.find(agent => agent.faction === profile.faction)
+      || observation.nearbyAgents[0]
+    const player = target && bot.players[target.name]
+    if (player?.entity) {
+      await moveNear(bot, player.entity.position, 3)
+      say(bot, target.name + ', я хотел обсудить наши планы.')
+    } else {
+      await explore(bot, profile)
+    }
+  } else if (action === 'talk') {
+    if (decision.message) say(bot, decision.message)
+  } else if (action === 'claim_home') {
+    memory[profile.name].home = safePosition(bot)
+    remember(profile.name, 'Выбрал место для будущего дома')
+    say(bot, 'Кажется, здесь можно обустроить мой дом.')
+  } else if (action === 'return_home') {
+    if (memory[profile.name].home) await moveNear(bot, memory[profile.name].home, 3)
+    else await explore(bot, profile)
+  } else if (action === 'rest') {
+    await wait(rand(5000, 9000))
+  }
 }
 
 async function runAgent(bot, profile, state) {
@@ -264,19 +336,18 @@ async function runAgent(bot, profile, state) {
   state.retry = 0
   try {
     while (state.started && state.bot === bot && bot.entity) {
-      if (profile.role === 'gatherer') {
-        await gatherWood(bot, profile)
-        if (Math.random() < 0.2) await explore(bot, profile)
-      } else if (profile.role === 'builder') {
-        await gatherWood(bot, profile)
-        if (Math.random() < 0.6) await buildStarterCamp(bot, profile)
-        else await explore(bot, profile)
-      } else {
-        await explore(bot, profile)
-        if (Math.random() < 0.3) await gatherWood(bot, profile)
+      const observation = observeAgent(bot, profile)
+      let decision = await generateDecision(profile, memory[profile.name], observation)
+      if (!decision) {
+        if (!state.ollamaWarningShown) {
+          console.log('[AI-FALLBACK] ' + profile.name + ': Ollama недоступна, временно включена простая логика.')
+          state.ollamaWarningShown = true
+        }
+        decision = fallbackDecision(profile, observation)
       }
+      if (!state.started || state.bot !== bot) break
+      await executeDecision(bot, profile, state, decision, observation)
       if (state.bot !== bot || !bot.entity) break
-      if (Math.random() < 0.18) await socialMoment(bot, profile, state)
       await wait(rand(3500, 6500))
     }
   } finally {
