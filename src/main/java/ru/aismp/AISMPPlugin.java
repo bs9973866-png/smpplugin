@@ -44,7 +44,7 @@ public final class AISMPPlugin extends JavaPlugin implements Listener {
             if (running) {
                 p.setInvulnerable(false);
                 frozen.remove(p.getUniqueId());
-                announce(p.getName() + " вернулся в симуляцию.");
+                announce("СТАРТ! " + p.getName() + " вернулся в симуляцию.");
                 return;
             }
             placeInCircle(p);
@@ -171,8 +171,9 @@ public final class AISMPPlugin extends JavaPlugin implements Listener {
             return true;
         }
         if (action.equals("stop")) {
-            stopCountdown(true);
+            stopCountdown(false);
             running = false;
+            announce("ПАУЗА! Симуляция остановлена администратором.");
             for (Player p : Bukkit.getOnlinePlayers()) if (isBot(p)) {
                 frozen.remove(p.getUniqueId());
                 p.setInvulnerable(false);
