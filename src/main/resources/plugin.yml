@@ -1,0 +1,14 @@
+name: AISMP
+version: 1.0.0
+main: ru.aismp.AISMPPlugin
+api-version: '26.2'
+author: AISMP
+description: 19 autonomous civilization agents for a private Paper SMP
+commands:
+  aismp:
+    description: Control the AI SMP simulation
+    usage: /aismp <status|start|stop>
+    permission: aismp.admin
+permissions:
+  aismp.admin:
+    default: op
