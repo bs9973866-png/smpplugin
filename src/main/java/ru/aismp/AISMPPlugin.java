@@ -14,7 +14,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,8 +48,10 @@ public final class AISMPPlugin extends JavaPlugin implements Listener {
             p.teleport(spot);
             p.setInvulnerable(true);
             frozen.add(p.getUniqueId());
-            if (!running && countdownTask == null) beginCountdown();
             announce("Подключился " + p.getName() + " (" + onlineBots() + "/" + botNames().size() + ")");
+            if (!running && countdownTask == null && onlineBots() >= botNames().size()) {
+                beginCountdown();
+            }
         });
     }
 
@@ -74,7 +75,7 @@ public final class AISMPPlugin extends JavaPlugin implements Listener {
 
     private void beginCountdown() {
         secondsLeft = getConfig().getInt("countdown-seconds", 60);
-        announce("Все на старт! До начала симуляции: " + secondsLeft + " секунд.");
+        announce("Все 19 агентов на месте! До начала симуляции: " + secondsLeft + " секунд.");
         countdownTask = Bukkit.getScheduler().runTaskTimer(this, () -> {
             if (secondsLeft <= 0) {
                 stopCountdown(false);
