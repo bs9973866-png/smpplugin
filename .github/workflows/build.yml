@@ -25,7 +25,7 @@ jobs:
         run: |
           node --check index.js
           node --check ollama-brain.js
-          node -e "const bots=require('./bots.json'); if (bots.length !== 19) process.exit(1); console.log('Validated ' + bots.length + ' AI profiles')"
+          npm run validate
       - name: Install AI runtime dependencies
         working-directory: agent-runtime
         run: npm install --ignore-scripts --no-audit --no-fund
