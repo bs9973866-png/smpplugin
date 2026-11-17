@@ -4,7 +4,7 @@
   "private": true,
   "description": "19 non-combat autonomous civilization agents for a private Paper 26.2 server",
   "main": "index.js",
-  "scripts": { "start": "node index.js" },
+  "scripts": { "start": "node index.js", "validate": "node validate.js" },
   "engines": { "node": ">=22" },
   "dependencies": {
     "mineflayer": "https://github.com/Complexity-ML/mineflayer-26.2/releases/download/complexity-26.2.3/mineflayer-complexity-26.2.3.tgz",
