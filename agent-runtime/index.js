@@ -3,6 +3,7 @@ const { pathfinder, Movements, goals } = require('mineflayer-pathfinder')
 const fs = require('node:fs')
 const path = require('node:path')
 const profiles = require('./bots.json')
+const { generateChat } = require('./ollama-brain')
 
 const HOST = process.env.MC_HOST || '127.0.0.1'
 const PORT = Number(process.env.MC_PORT || 25565)
@@ -105,6 +106,11 @@ function makeAgent(profile, state) {
 
   bot.on('message', json => {
     const text = json.toString()
+    if (text.includes('ПАУЗА!')) {
+      state.started = false
+      remember(profile.name, 'Симуляция приостановлена администратором')
+      return
+    }
     if (text.includes(START_MARKER) && !state.started) {
       state.started = true
       remember(profile.name, 'Симуляция началась')
@@ -238,14 +244,15 @@ async function buildStarterCamp(bot, profile) {
 
 async function socialMoment(bot, profile, state) {
   if (Date.now() - state.lastChat < 45000) return
+  state.lastChat = Date.now()
+  const thought = await generateChat(profile, memory[profile.name])
   const phrases = [
     'Как у вас дела? Я продолжаю обустраиваться.',
     'Если найдёте удобное место для поселения, расскажите.',
     'Давайте обмениваться новостями об исследованных местах.',
     'Постепенно собираю ресурсы для своего лагеря.'
   ]
-  state.lastChat = Date.now()
-  say(bot, phrases[rand(0, phrases.length - 1)])
+  say(bot, thought || phrases[rand(0, phrases.length - 1)])
 }
 
 async function runAgent(bot, profile, state) {
