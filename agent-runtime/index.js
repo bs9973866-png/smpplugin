@@ -121,25 +121,11 @@ function makeAgent(profile, state) {
 
   bot.on('chat', (username, message) => {
     if (username === bot.username || !profiles.some(p => p.name === username)) return
-    const lower = message.toLowerCase()
     const other = profiles.find(p => p.name === username)
     const sameFaction = other && other.faction === profile.faction
-    const diplomatic = /союз|друж|помощ|вместе|обмен|сотруднич/.test(lower)
+    const diplomatic = /союз|друж|помощ|вместе|обмен|сотруднич/.test(message.toLowerCase())
     recordRelationship(profile, username, diplomatic ? 2 : sameFaction ? 1 : 0.25, message)
-    const addressed = lower.includes(profile.name.toLowerCase())
-    const invite = /привет|вместе|союз|лагер|посел|помощ|где ты/.test(lower)
-    if (addressed || (invite && Math.random() < 0.22)) {
-      const replies = [
-        'Я услышал тебя. Давай обсудим это чуть позже.',
-        'Хорошая мысль. Запомню!',
-        'Я сейчас исследую окрестности, скоро поделюсь находками.',
-        'Можем держаться поблизости и помогать друг другу.'
-      ]
-      if (Date.now() - state.lastChat > 18000) {
-        state.lastChat = Date.now()
-        say(bot, username + ', ' + replies[rand(0, replies.length - 1)])
-      }
-    }
+    remember(profile.name, 'Персонаж ' + username + ' сказал: ' + message)
   })
 
   bot.on('kicked', reason => console.log('[KICK] ' + profile.name + ': ' + reason))
@@ -339,11 +325,20 @@ async function runAgent(bot, profile, state) {
       const observation = observeAgent(bot, profile)
       let decision = await generateDecision(profile, memory[profile.name], observation)
       if (!decision) {
-        if (!state.ollamaWarningShown) {
-          console.log('[AI-FALLBACK] ' + profile.name + ': Ollama недоступна, временно включена простая логика.')
-          state.ollamaWarningShown = true
+        if (process.env.AI_ALLOW_FALLBACK === 'true') {
+          if (!state.ollamaWarningShown) {
+            console.log('[AI-FALLBACK] ' + profile.name + ': включена простая логика по AI_ALLOW_FALLBACK=true.')
+            state.ollamaWarningShown = true
+          }
+          decision = fallbackDecision(profile, observation)
+        } else {
+          if (!state.ollamaWarningShown) {
+            console.log('[AI-WAIT] ' + profile.name + ': жду настоящее решение от Ollama. Проверь, что модель запущена.')
+            state.ollamaWarningShown = true
+          }
+          await wait(10000)
+          continue
         }
-        decision = fallbackDecision(profile, observation)
       }
       if (!state.started || state.bot !== bot) break
       await executeDecision(bot, profile, state, decision, observation)
