@@ -1,0 +1,24 @@
+bots:
+  - AI_Astra
+  - AI_Borey
+  - AI_Vega
+  - AI_Mira
+  - AI_Rubin
+  - AI_Sirius
+  - AI_Luna
+  - AI_Orion
+  - AI_Nova
+  - AI_Terra
+  - AI_Kedr
+  - AI_Yantar
+  - AI_Feniks
+  - AI_Altair
+  - AI_Runa
+  - AI_Sokol
+  - AI_Mayak
+  - AI_Sever
+  - AI_Iskra
+countdown-seconds: 60
+circle-radius: 5.0
+spawn-world: ""
+# Leave empty to use the first world's spawn.
