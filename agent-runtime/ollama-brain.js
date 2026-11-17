@@ -18,7 +18,7 @@ const DECISION_SCHEMA = {
 
 function cleanText(value, max = 180) {
   if (typeof value !== 'string') return ''
-  return value.replace(/[\\r\\n\\t]+/g, ' ').replace(/§[0-9a-fk-or]/gi, '').trim().slice(0, max)
+  return value.replaceAll(String.fromCharCode(10), ' ').replaceAll(String.fromCharCode(13), ' ').replaceAll(String.fromCharCode(9), ' ').replace(/§[0-9a-fk-or]/gi, '').trim().slice(0, max)
 }
 
 function parseDecision(raw, observation) {
