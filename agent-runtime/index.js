@@ -121,8 +121,11 @@ function makeAgent(profile, state) {
 
   bot.on('chat', (username, message) => {
     if (username === bot.username || !profiles.some(p => p.name === username)) return
-    recordRelationship(profile, username, 1, message)
     const lower = message.toLowerCase()
+    const other = profiles.find(p => p.name === username)
+    const sameFaction = other && other.faction === profile.faction
+    const diplomatic = /союз|друж|помощ|вместе|обмен|сотруднич/.test(lower)
+    recordRelationship(profile, username, diplomatic ? 2 : sameFaction ? 1 : 0.25, message)
     const addressed = lower.includes(profile.name.toLowerCase())
     const invite = /привет|вместе|союз|лагер|посел|помощ|где ты/.test(lower)
     if (addressed || (invite && Math.random() < 0.22)) {
